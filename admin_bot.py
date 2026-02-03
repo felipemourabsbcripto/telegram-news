@@ -148,7 +148,7 @@ class TelegramAPI:
         self.token = token
         self.base_url = f"https://api.telegram.org/bot{token}"
     
-    def send_message(self, chat_id, text, reply_markup=None, parse_mode="HTML"):
+    def send_message(self, chat_id, text, reply_markup=None, parse_mode="HTML", reply_to=None):
         data = {
             "chat_id": chat_id,
             "text": text,
@@ -156,7 +156,20 @@ class TelegramAPI:
         }
         if reply_markup:
             data["reply_markup"] = json.dumps(reply_markup)
+        if reply_to:
+            data["reply_to_message_id"] = reply_to
         return requests.post(f"{self.base_url}/sendMessage", data=data)
+    
+    def _call(self, method, data=None):
+        """Chamada genérica à API do Telegram."""
+        try:
+            response = requests.post(f"{self.base_url}/{method}", json=data or {})
+            result = response.json()
+            if result.get("ok"):
+                return result.get("result")
+            return None
+        except:
+            return None
     
     def edit_message(self, chat_id, message_id, text, reply_markup=None):
         data = {
@@ -948,6 +961,18 @@ class AdminBot:
         self.running = True
         self.news_thread = None
         self.awaiting_input = {}  # user_id -> (type, context)
+        self.bot_username = None  # Será preenchido ao iniciar
+        self._get_bot_info()
+    
+    def _get_bot_info(self):
+        """Obtém informações do bot (username) da API."""
+        try:
+            result = self.api._call("getMe")
+            if result:
+                self.bot_username = result.get("username", "").lower()
+                logger.info(f"Bot username: @{self.bot_username}")
+        except Exception as e:
+            logger.error(f"Error getting bot info: {e}")
     
     def handle_update(self, update):
         if "callback_query" in update:
@@ -959,6 +984,7 @@ class AdminBot:
         chat_id = msg["chat"]["id"]
         text = msg.get("text", "")
         user_id = msg["from"]["id"]
+        message_id = msg.get("message_id")
         
         # Check if awaiting input
         if user_id in self.awaiting_input:
@@ -978,6 +1004,35 @@ class AdminBot:
             elif await_type == "calendar_add":
                 self.process_calendar_add(chat_id, text)
                 return
+        
+        # Verificar se o bot foi mencionado (@username)
+        bot_mentioned = False
+        question = text
+        
+        if self.bot_username:
+            mention = f"@{self.bot_username}"
+            if mention.lower() in text.lower():
+                bot_mentioned = True
+                # Remover a menção para obter só a pergunta
+                question = text.lower().replace(mention.lower(), "").strip()
+        
+        # Verificar entidades de menção
+        if not bot_mentioned and "entities" in msg:
+            for entity in msg.get("entities", []):
+                if entity.get("type") == "mention":
+                    offset = entity["offset"]
+                    length = entity["length"]
+                    mentioned = text[offset:offset+length].lower()
+                    if self.bot_username and mentioned == f"@{self.bot_username}":
+                        bot_mentioned = True
+                        question = text[:offset] + text[offset+length:]
+                        question = question.strip()
+                        break
+        
+        # Se foi mencionado, responder com IA
+        if bot_mentioned and question:
+            self.answer_question(chat_id, message_id, question, msg.get("from", {}).get("first_name", ""))
+            return
         
         if text == "/start" or text == "/config":
             self.show_main_menu(chat_id)
@@ -1800,13 +1855,69 @@ class AdminBot:
         else:
             self.api.send_message(chat_id, text, keyboard)
     
+    def answer_question(self, chat_id, reply_to_message_id, question, user_name=""):
+        """Responde uma pergunta usando IA quando o bot é mencionado."""
+        if not question:
+            self.api.send_message(chat_id, 
+                "🤖 Olá! Me faça uma pergunta sobre criptomoedas!\n\n"
+                "Exemplo: <i>@" + (self.bot_username or "bot") + " qual a previsão do Bitcoin?</i>",
+                reply_to=reply_to_message_id)
+            return
+        
+        # Indicar que está digitando
+        try:
+            self.api._call("sendChatAction", {"chat_id": chat_id, "action": "typing"})
+        except:
+            pass
+        
+        # Prompt especializado em cripto
+        system_prompt = """Você é um especialista em criptomoedas, blockchain e mercado financeiro digital.
+Responda de forma clara, objetiva e informativa em português brasileiro.
+Use emojis relevantes para tornar a resposta mais visual.
+Se a pergunta for sobre preços ou previsões, seja cauteloso e mencione que não é conselho financeiro.
+Mantenha as respostas concisas (máximo 3-4 parágrafos).
+Inclua dados e fatos quando possível."""
+
+        prompt = f"""Pergunta do usuário {user_name}: {question}
+
+Responda de forma útil e informativa sobre criptomoedas/blockchain."""
+
+        try:
+            response = call_groq_ai(prompt, system_prompt=system_prompt, max_tokens=800)
+            
+            if response:
+                # Formatar resposta
+                header = f"🤖 <b>Resposta para {user_name}:</b>\n\n" if user_name else "🤖 <b>Resposta:</b>\n\n"
+                message = header + response
+                
+                # Adicionar disclaimer para perguntas sobre preço
+                price_keywords = ["preço", "previsão", "vai subir", "vai cair", "investir", "comprar", "vender"]
+                if any(kw in question.lower() for kw in price_keywords):
+                    message += "\n\n⚠️ <i>Disclaimer: Isso não é conselho financeiro. Faça sua própria pesquisa.</i>"
+                
+                self.api.send_message(chat_id, message, reply_to=reply_to_message_id)
+            else:
+                self.api.send_message(chat_id, 
+                    "❌ Desculpe, não consegui processar sua pergunta. Tente novamente!",
+                    reply_to=reply_to_message_id)
+        except Exception as e:
+            logger.error(f"Error answering question: {e}")
+            self.api.send_message(chat_id,
+                "❌ Ocorreu um erro ao processar sua pergunta. Tente novamente em alguns segundos.",
+                reply_to=reply_to_message_id)
+    
     def show_help(self, chat_id):
-        self.api.send_message(chat_id, """
+        self.api.send_message(chat_id, f"""
 📖 <b>Comandos Disponíveis</b>
 
 /start ou /config - Abrir painel de configuração
 /status - Ver status atual
 /help - Esta mensagem
+/calendar - Calendário de eventos
+
+<b>💬 Pergunte ao Bot:</b>
+Me marque com @{self.bot_username or 'bot'} + sua pergunta!
+Exemplo: <i>@{self.bot_username or 'bot'} o que é DeFi?</i>
 
 <b>Recursos:</b>
 • Configure fontes de notícias
@@ -1815,6 +1926,7 @@ class AdminBot:
 • Ative tradução automática
 • Use IA para resumir notícias
 • Filtre por temas específicos
+• Pergunte sobre cripto (me marque!)
 """)
     
     def run(self):
