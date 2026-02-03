@@ -11,12 +11,16 @@ import time
 import logging
 import hashlib
 import threading
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 import requests
 from sqlalchemy import create_engine, Column, Integer, String, Boolean, Text, DateTime, text
 from sqlalchemy.orm import Session, declarative_base
 from telegram_news.template import InfoExtractor, NewsPostman
+
+# Função helper para obter data/hora atual UTC (compatível Python 3.12+)
+def utcnow():
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 # ============================================================
 # 🔧 CONFIGURAÇÕES
@@ -2697,11 +2701,13 @@ class AdminBot:
                 f"📰 <b>Olá! Sou o {BOT_NAME}!</b>\n\n"
                 "Me pergunte sobre:\n"
                 "• 📊 Notícias do mercado cripto\n"
-                "• 💹 Momento atual do mercado\n"
-                "• 🔍 Análises de moedas\n"
-                "• 📈 Tendências e previsões\n"
+                "• 💹 Mercado financeiro em geral\n"
+                "• 📈 Ações, forex, commodities\n"
+                "• 🏦 Economia e finanças\n"
+                "• 🔍 Análises de ativos\n"
+                "• 📉 Tendências e previsões\n"
                 "• 💡 Dicas e estratégias\n\n"
-                f"Exemplo: <i>@{self.bot_username or 'bot'} como está o Bitcoin hoje?</i>",
+                f"Exemplo: <i>@{self.bot_username or 'bot'} como está o mercado hoje?</i>",
                 reply_to=reply_to_message_id)
             return
         
@@ -2711,38 +2717,56 @@ class AdminBot:
         except:
             pass
         
-        # Prompt especializado em notícias, análises e indicações
-        system_prompt = f"""Você é o {BOT_NAME}, um bot especialista em criptomoedas, blockchain e mercado financeiro digital.
+        # Prompt especializado em mercados financeiros
+        system_prompt = f"""Você é o {BOT_NAME}, um bot especialista em MERCADOS FINANCEIROS, incluindo criptomoedas, ações, forex, commodities e economia em geral.
 
-SEU FOCO:
-- Notícias recentes do mercado cripto
-- Análise do momento atual do mercado (alta, baixa, lateralizado)
+SEUS CONHECIMENTOS:
+🪙 CRIPTOMOEDAS:
+- Bitcoin, Ethereum, altcoins
+- DeFi, NFTs, Layer 2s
+- Análise on-chain
 - Sentimento do mercado (Fear & Greed)
-- Movimentações importantes (baleias, ETFs, institucionais)
-- Previsões e análises técnicas
-- Dicas de investimento e estratégias
-- Explicações educacionais sobre cripto
+
+📈 MERCADO DE AÇÕES:
+- Bolsas mundiais (B3, NYSE, NASDAQ, etc.)
+- Ações brasileiras e internacionais
+- Índices (IBOV, S&P 500, Dow Jones)
+- IPOs e dividendos
+
+💱 FOREX E COMMODITIES:
+- Pares de moedas (USD/BRL, EUR/USD, etc.)
+- Ouro, prata, petróleo
+- Soja, milho, café
+- Dólar e moedas globais
+
+🏦 ECONOMIA E FINANÇAS:
+- Taxa Selic, juros americanos (Fed)
+- Inflação, PIB, emprego
+- Renda fixa, CDBs, Tesouro
+- Investimentos em geral
 
 COMO RESPONDER:
 1. Seja direto e objetivo
-2. Use emojis para tornar visual (📈📉💹🔥⚠️🚀💎)
+2. Use emojis para tornar visual (📈📉💹🔥⚠️🚀💎💰)
 3. Dê sua opinião quando perguntado
 4. Pode indicar se acha que vai subir ou cair
 5. Mencione níveis de suporte/resistência quando relevante
 6. Seja conciso (2-4 parágrafos)
 7. Responda em português brasileiro
-8. No final, sempre lembre que é opinião pessoal e não garantia
+8. No final, lembre que é opinião e não recomendação oficial
+
+Data atual: {datetime.now().strftime('%d/%m/%Y')}
 
 EXEMPLOS DE FRASES:
-- "Na minha análise, o BTC está..."
-- "O mercado está mostrando sinais de..."
+- "Na minha análise, o mercado está..."
+- "O cenário atual indica..."
 - "Minha opinião: pode ser bom momento para..."
 - "Fique atento ao nível de..."
-- "Lembrando: isso é minha análise, faça sua própria pesquisa!"""
+- "Lembrando: faça sua própria pesquisa antes de investir!"""
 
         prompt = f"""Pergunta de {user_name}: {question}
 
-Responda sobre o mercado cripto. Pode dar sua opinião e análise."""
+Responda sobre mercado financeiro (cripto, ações, forex, economia, etc). Pode dar sua opinião e análise."""
 
         try:
             response = call_groq_ai(prompt, system_prompt=system_prompt, max_tokens=800)
