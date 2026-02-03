@@ -1096,12 +1096,20 @@ class NewsPostman(object):
         return res
 
     def _is_posted(self, news_id):
-        query = text("SELECT * FROM {} WHERE news_id = :news_id".format(self._table_name))
-        rows = self._db.execute(query, {"news_id": str(news_id)})
-        if rows.rowcount == 0:
+        try:
+            query = text("SELECT * FROM {} WHERE news_id = :news_id".format(self._table_name))
+            rows = self._db.execute(query, {"news_id": str(news_id)})
+            if rows.rowcount == 0:
+                return False
+            else:
+                return True
+        except Exception as e:
+            # Rollback on error to clear failed transaction state
+            try:
+                self._db.rollback()
+            except:
+                pass
             return False
-        else:
-            return True
 
     def _action(self, no_post=False):  # -> (list, int)
         duplicate_list = []
