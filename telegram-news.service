@@ -1,0 +1,15 @@
+[Unit]
+Description=CriptonewsFelipeMoura Telegram Bot
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/telegram-news
+EnvironmentFile=/home/ubuntu/telegram-news/.env
+ExecStart=/home/ubuntu/telegram-news/venv/bin/python3 /home/ubuntu/telegram-news/admin_bot.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
