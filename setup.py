@@ -4,7 +4,7 @@ requires = [
     'requests',
     'SQLAlchemy',
     'beautifulsoup4',
-    'psycopg2',
+    'psycopg2-binary',
     'lxml',
     'xmltodict',
 ]

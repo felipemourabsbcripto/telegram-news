@@ -2,6 +2,8 @@
 
 """This package provides templates, utilities and display policies."""
 
+from .template import NewsPostman
+
 LOGO = r'''
       ______     __
      /_  __/__  / /__  ____ __________ _____ ___        ____  ___ _      _______
@@ -12,4 +14,8 @@ LOGO = r'''
 	                https://github.com/ESWZY/telegram-news
 '''
 
-__all__ = ['LOGO', ]
+def set_bot_token(token):
+    """Set the default telegram bot token."""
+    NewsPostman.set_bot_token(token)
+
+__all__ = ['LOGO', 'set_bot_token']

@@ -603,7 +603,7 @@ class NewsPostman(object):
     _proxies = None
     _display_policy = best_effort_display_policy
     _parameter_policy = None
-    _TOKENS = [os.getenv("TOKEN"), ]
+    _TOKENS = [os.getenv("TELEGRAM_TOKEN") or os.getenv("TOKEN"), ]
     _db = None
     _table_name = None
     _max_table_rows = math.inf
@@ -629,7 +629,7 @@ class NewsPostman(object):
     _cache_list = os.urandom(10)
 
     def __init__(self, listURLs, sendList, db, tag='', headers=None, proxies=None,
-                 display_policy=best_effort_display_policy):
+                 display_policy=best_effort_display_policy, token=None):
         """Construct the class by setting key attributes."""
         self._DEBUG = False
         self._listURLs = listURLs
@@ -637,6 +637,8 @@ class NewsPostman(object):
         self._tag = tag
         self._display_policy = display_policy
         self._db = db
+        if token:
+            self._TOKENS = [token, ]
         if headers:
             self._headers = headers
         else:
