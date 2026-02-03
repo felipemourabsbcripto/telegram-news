@@ -14,7 +14,7 @@ import threading
 from datetime import datetime, timedelta
 from typing import Optional
 import requests
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, Text, DateTime
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, Text, DateTime, text
 from sqlalchemy.orm import Session, declarative_base
 from telegram_news.template import InfoExtractor, NewsPostman
 
@@ -102,6 +102,8 @@ class BotGroup(Base):
     chat_id = Column(String(100), unique=True)  # ID do chat/grupo/canal
     title = Column(String(500))  # Nome do grupo/canal
     chat_type = Column(String(50))  # channel, group, supergroup
+    topic_id = Column(Integer, nullable=True)  # ID do tópico (para grupos com tópicos)
+    topic_name = Column(String(200), nullable=True)  # Nome do tópico
     enabled = Column(Boolean, default=True)
     added_at = Column(DateTime, default=datetime.utcnow)
     added_by = Column(String(100), nullable=True)  # User ID de quem adicionou
@@ -241,15 +243,30 @@ def build_groups_menu(groups):
     for g in groups:
         icon = "✅" if g.enabled else "❌"
         type_icon = "📢" if g.chat_type == "channel" else "👥"
-        title = g.title[:25] + "..." if len(g.title) > 25 else g.title
+        title = g.title[:20] + "..." if len(g.title) > 20 else g.title
+        topic_info = f" 💬{g.topic_name[:10]}" if g.topic_name else ""
         buttons.append([
-            {"text": f"{icon} {type_icon} {title}", "callback_data": f"toggle_group_{g.id}"},
+            {"text": f"{icon} {type_icon} {title}{topic_info}", "callback_data": f"toggle_group_{g.id}"},
+            {"text": "⚙️", "callback_data": f"config_group_{g.id}"},
             {"text": "🗑️", "callback_data": f"delete_group_{g.id}"}
         ])
     buttons.append([{"text": "➕ Adicionar Grupo/Canal", "callback_data": "add_group"}])
     buttons.append([{"text": "📋 Como Adicionar", "callback_data": "group_help"}])
     buttons.append([{"text": "⬅️ Voltar", "callback_data": "menu_main"}])
     return {"inline_keyboard": buttons}
+
+def build_group_config_menu(group):
+    """Menu de configuração de um grupo específico."""
+    topic_text = f"💬 Tópico: {group.topic_name}" if group.topic_name else "💬 Sem tópico definido"
+    return {
+        "inline_keyboard": [
+            [{"text": topic_text, "callback_data": f"group_set_topic_{group.id}"}],
+            [{"text": "🔄 Detectar Tópicos", "callback_data": f"group_detect_topics_{group.id}"}],
+            [{"text": "📝 Definir Tópico Manual", "callback_data": f"group_manual_topic_{group.id}"}],
+            [{"text": "🗑️ Remover Tópico", "callback_data": f"group_remove_topic_{group.id}"}],
+            [{"text": "⬅️ Voltar", "callback_data": "menu_groups"}]
+        ]
+    }
 
 def build_sources_menu(config):
     sources = config.get("sources_enabled", {})
@@ -1289,6 +1306,9 @@ class AdminBot:
             elif await_type == "add_group":
                 self.process_add_group(chat_id, text, user_id)
                 return
+            elif await_type == "group_topic":
+                self.process_group_topic(chat_id, text, context)
+                return
         
         # Verificar se o bot foi mencionado (@username)
         bot_mentioned = False
@@ -1440,6 +1460,91 @@ class AdminBot:
             self.api.edit_message(chat_id, message_id,
                 "🗑️ <b>Grupo removido!</b>\n\n👥 <b>Grupos/Canais</b>:",
                 build_groups_menu(groups))
+        
+        elif data.startswith("config_group_"):
+            group_id = int(data.replace("config_group_", ""))
+            group = self.db.query(BotGroup).filter_by(id=group_id).first()
+            if group:
+                topic_info = f"\n💬 Tópico atual: <b>{group.topic_name}</b> (ID: {group.topic_id})" if group.topic_id else "\n💬 Nenhum tópico definido"
+                self.api.edit_message(chat_id, message_id,
+                    f"⚙️ <b>Configurar Grupo</b>\n\n"
+                    f"📍 <b>{group.title}</b>\n"
+                    f"🆔 {group.chat_id}\n"
+                    f"📊 Tipo: {group.chat_type}{topic_info}\n\n"
+                    "Configure o tópico para postagem:",
+                    build_group_config_menu(group))
+        
+        elif data.startswith("group_detect_topics_"):
+            group_id = int(data.replace("group_detect_topics_", ""))
+            group = self.db.query(BotGroup).filter_by(id=group_id).first()
+            if group:
+                # Tentar detectar tópicos do grupo
+                topics = self.detect_group_topics(group.chat_id)
+                if topics:
+                    buttons = []
+                    for topic in topics[:10]:  # Limitar a 10 tópicos
+                        buttons.append([{
+                            "text": f"💬 {topic['name']}", 
+                            "callback_data": f"group_select_topic_{group_id}_{topic['id']}"
+                        }])
+                    buttons.append([{"text": "⬅️ Voltar", "callback_data": f"config_group_{group_id}"}])
+                    self.api.edit_message(chat_id, message_id,
+                        f"💬 <b>Tópicos encontrados em {group.title}:</b>\n\n"
+                        "Selecione o tópico para postagem:",
+                        {"inline_keyboard": buttons})
+                else:
+                    self.api.edit_message(chat_id, message_id,
+                        f"⚠️ <b>Nenhum tópico encontrado</b>\n\n"
+                        "Este grupo pode não ter tópicos habilitados.\n"
+                        "Ou use 'Definir Tópico Manual' se souber o ID.",
+                        build_group_config_menu(group))
+        
+        elif data.startswith("group_select_topic_"):
+            parts = data.replace("group_select_topic_", "").split("_")
+            group_id = int(parts[0])
+            topic_id = int(parts[1])
+            group = self.db.query(BotGroup).filter_by(id=group_id).first()
+            if group:
+                # Buscar nome do tópico
+                topics = self.detect_group_topics(group.chat_id)
+                topic_name = None
+                for t in topics:
+                    if t['id'] == topic_id:
+                        topic_name = t['name']
+                        break
+                
+                group.topic_id = topic_id
+                group.topic_name = topic_name or f"Tópico {topic_id}"
+                self.db.commit()
+                
+                self.api.edit_message(chat_id, message_id,
+                    f"✅ <b>Tópico configurado!</b>\n\n"
+                    f"📍 Grupo: {group.title}\n"
+                    f"💬 Tópico: {group.topic_name}",
+                    build_group_config_menu(group))
+        
+        elif data.startswith("group_manual_topic_"):
+            group_id = int(data.replace("group_manual_topic_", ""))
+            self.awaiting_input[user_id] = ("group_topic", group_id)
+            self.api.send_message(chat_id,
+                "📝 <b>Definir Tópico Manualmente</b>\n\n"
+                "Envie o ID do tópico e nome no formato:\n"
+                "<code>ID|Nome do Tópico</code>\n\n"
+                "Exemplo: <code>123|Notícias Cripto</code>\n\n"
+                "<i>Dica: O ID do tópico aparece na URL quando você abre o tópico no Telegram Web</i>")
+        
+        elif data.startswith("group_remove_topic_"):
+            group_id = int(data.replace("group_remove_topic_", ""))
+            group = self.db.query(BotGroup).filter_by(id=group_id).first()
+            if group:
+                group.topic_id = None
+                group.topic_name = None
+                self.db.commit()
+                self.api.edit_message(chat_id, message_id,
+                    f"✅ <b>Tópico removido!</b>\n\n"
+                    f"📍 Grupo: {group.title}\n"
+                    f"💬 Agora postará no chat geral",
+                    build_group_config_menu(group))
         
         elif data == "add_group":
             self.awaiting_input[user_id] = ("add_group", None)
@@ -2149,6 +2254,57 @@ class AdminBot:
             logger.error(f"Erro ao deletar grupo: {e}")
             self.db_session.rollback()
     
+    def detect_group_topics(self, chat_id):
+        """Detecta tópicos disponíveis em um grupo."""
+        topics = []
+        try:
+            # Usar API do Telegram para buscar tópicos (getForumTopics)
+            url = f"{TELEGRAM_API}/getForumTopics"
+            response = requests.post(url, json={"chat_id": chat_id}, timeout=10)
+            
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("ok") and data.get("result", {}).get("topics"):
+                    for topic in data["result"]["topics"]:
+                        topics.append({
+                            "id": topic.get("message_thread_id"),
+                            "name": topic.get("name", "Tópico"),
+                            "icon": topic.get("icon_custom_emoji_id", "")
+                        })
+        except Exception as e:
+            logger.error(f"Erro ao detectar tópicos: {e}")
+        
+        return topics
+    
+    def process_group_topic(self, chat_id, text, group_id):
+        """Processa definição manual de tópico."""
+        try:
+            parts = text.strip().split("|")
+            topic_id = int(parts[0].strip())
+            topic_name = parts[1].strip() if len(parts) > 1 else f"Tópico {topic_id}"
+            
+            group = self.db_session.query(BotGroup).filter_by(id=group_id).first()
+            if group:
+                group.topic_id = topic_id
+                group.topic_name = topic_name
+                self.db_session.commit()
+                
+                self.api.send_message(chat_id,
+                    f"✅ <b>Tópico configurado!</b>\n\n"
+                    f"📍 Grupo: {group.title}\n"
+                    f"💬 Tópico: {topic_name} (ID: {topic_id})",
+                    build_group_config_menu(group))
+            else:
+                self.api.send_message(chat_id, "❌ Grupo não encontrado!")
+        except ValueError:
+            self.api.send_message(chat_id, 
+                "❌ Formato inválido!\n\n"
+                "Use: <code>ID|Nome do Tópico</code>\n"
+                "Exemplo: <code>123|Notícias Cripto</code>")
+        except Exception as e:
+            logger.error(f"Erro ao configurar tópico: {e}")
+            self.api.send_message(chat_id, f"❌ Erro: {e}")
+    
     def process_add_group(self, chat_id, text, user_id):
         """Processa adição de novo grupo/canal."""
         try:
@@ -2612,14 +2768,37 @@ SOURCES_CONFIG = {
 }
 
 def get_send_list(db_session):
-    """Retorna lista de chat_ids para enviar notícias (grupos ativos + canal principal)."""
+    """Retorna lista de destinos para enviar notícias (grupos ativos + canal principal).
+    Cada destino é um dict com chat_id e topic_id (se houver)."""
     send_list = []
     
     # Adicionar canal principal se configurado
     if CHANNEL_ID:
-        send_list.append(CHANNEL_ID)
+        send_list.append({"chat_id": CHANNEL_ID, "topic_id": None, "title": "Canal Principal"})
     
     # Adicionar grupos/canais cadastrados e ativos
+    try:
+        groups = db_session.query(BotGroup).filter_by(enabled=True).all()
+        for g in groups:
+            # Verificar se já não está na lista
+            if not any(d["chat_id"] == g.chat_id for d in send_list):
+                send_list.append({
+                    "chat_id": g.chat_id, 
+                    "topic_id": g.topic_id,
+                    "title": g.title
+                })
+    except Exception as e:
+        logger.warning(f"Erro ao buscar grupos: {e}")
+    
+    return send_list if send_list else [{"chat_id": CHANNEL_ID, "topic_id": None, "title": "Canal Principal"}]
+
+def get_send_list_simple(db_session):
+    """Retorna lista simples de chat_ids (para compatibilidade com NewsPostman)."""
+    send_list = []
+    
+    if CHANNEL_ID:
+        send_list.append(CHANNEL_ID)
+    
     try:
         groups = db_session.query(BotGroup).filter_by(enabled=True).all()
         for g in groups:
@@ -2629,6 +2808,34 @@ def get_send_list(db_session):
         logger.warning(f"Erro ao buscar grupos: {e}")
     
     return send_list if send_list else [CHANNEL_ID]
+
+def send_to_destinations(send_list, text, keyboard=None):
+    """Envia mensagem para todos os destinos da lista, respeitando tópicos."""
+    for dest in send_list:
+        try:
+            chat_id = dest["chat_id"]
+            topic_id = dest.get("topic_id")
+            
+            payload = {
+                "chat_id": chat_id,
+                "text": text,
+                "parse_mode": "HTML",
+                "disable_web_page_preview": False
+            }
+            
+            # Adicionar topic_id se for um grupo com tópicos
+            if topic_id:
+                payload["message_thread_id"] = topic_id
+            
+            if keyboard:
+                payload["reply_markup"] = json.dumps(keyboard)
+            
+            response = requests.post(f"{TELEGRAM_API}/sendMessage", json=payload, timeout=30)
+            
+            if response.status_code != 200:
+                logger.warning(f"Erro ao enviar para {dest.get('title', chat_id)}: {response.text}")
+        except Exception as e:
+            logger.error(f"Erro ao enviar para destino: {e}")
 
 def run_news_fetcher(db_session, config_mgr):
     """Thread que busca e posta notícias."""
@@ -2643,7 +2850,7 @@ def run_news_fetcher(db_session, config_mgr):
             cycle_interval = config.get("cycle_interval", 300)
             
             # Obter lista de destinos (grupos/canais)
-            send_list = get_send_list(db_session)
+            send_list = get_send_list_simple(db_session)
             
             for source_key, enabled in sources_enabled.items():
                 if not enabled:
@@ -2794,6 +3001,22 @@ def main():
     # Database setup
     engine = create_engine(DATABASE_URL)
     Base.metadata.create_all(engine)
+    
+    # Migração: adicionar colunas de tópicos se não existirem
+    try:
+        with engine.connect() as conn:
+            # Verificar se a coluna topic_id existe
+            result = conn.execute(text("PRAGMA table_info(bot_groups)"))
+            columns = [row[1] for row in result.fetchall()]
+            
+            if 'topic_id' not in columns:
+                conn.execute(text("ALTER TABLE bot_groups ADD COLUMN topic_id INTEGER"))
+                conn.execute(text("ALTER TABLE bot_groups ADD COLUMN topic_name VARCHAR(200)"))
+                conn.commit()
+                logger.info("Migration: Added topic columns to bot_groups")
+    except Exception as e:
+        logger.warning(f"Migration check: {e}")
+    
     db_session = Session(bind=engine.connect())
     
     # Start admin bot
