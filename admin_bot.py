@@ -480,7 +480,8 @@ def build_calendar_menu():
             [{"text": "━━━ ⚙️ Configurar ━━━", "callback_data": "noop"}],
             [{"text": "🔔 Config Alertas", "callback_data": "calendar_alerts_config"}],
             [{"text": "➕ Adicionar Evento", "callback_data": "calendar_add"}],
-            [{"text": "🔄 Atualizar Eventos", "callback_data": "calendar_refresh"}],
+            [{"text": "🔄 Atualizar Manual", "callback_data": "calendar_refresh"}],
+            [{"text": "🤖 Sincronizar com IA", "callback_data": "calendar_ai_sync"}],
             [{"text": "⬅️ Voltar", "callback_data": "menu_main"}],
         ]
     }
@@ -704,6 +705,169 @@ Responda APENAS com a categoria:"""
         if theme in valid_themes:
             return theme
     return "news"
+
+def ai_verify_event_dates(events_list):
+    """Usa IA para verificar e sugerir correções nas datas dos eventos."""
+    if not GROQ_API_KEY:
+        return None
+    
+    today = datetime.utcnow().strftime("%Y-%m-%d")
+    
+    # Preparar lista de eventos para IA analisar
+    events_text = "\n".join([
+        f"- {e['title']}: {e['date']} ({e.get('category', 'event')})"
+        for e in events_list[:15]  # Limitar para não exceder contexto
+    ])
+    
+    prompt = f"""Data de hoje: {today}
+
+Analise estes eventos cripto e verifique se as datas parecem corretas para 2026.
+Eventos:
+{events_text}
+
+Para cada evento que pareça ter data incorreta (passado ou muito distante), sugira a correção no formato:
+EVENTO|DATA_CORRETA|MOTIVO
+
+Responda APENAS com as correções necessárias, uma por linha.
+Se tudo estiver OK, responda: OK"""
+
+    result = call_groq_ai(prompt, max_tokens=500)
+    return result
+
+def ai_search_new_events():
+    """Usa IA para sugerir novos eventos cripto importantes."""
+    if not GROQ_API_KEY:
+        return []
+    
+    today = datetime.utcnow()
+    month_names = {
+        1: "janeiro", 2: "fevereiro", 3: "março", 4: "abril",
+        5: "maio", 6: "junho", 7: "julho", 8: "agosto",
+        9: "setembro", 10: "outubro", 11: "novembro", 12: "dezembro"
+    }
+    current_month = month_names[today.month]
+    next_month = month_names[(today.month % 12) + 1]
+    
+    prompt = f"""Data atual: {today.strftime('%d/%m/%Y')}
+
+Liste os 5 principais eventos cripto que devem acontecer em {current_month} e {next_month} de {today.year}.
+
+Para cada evento, forneça no formato exato:
+TITULO|DATA|CATEGORIA|IMPORTANCIA|URL
+
+Categorias: conference, speech, launch
+Importância: 1-10
+
+Exemplo:
+ETHDenver 2026|2026-02-24|conference|9|https://ethdenver.com
+
+Responda APENAS com os eventos, um por linha."""
+
+    result = call_groq_ai(prompt, max_tokens=600)
+    
+    events = []
+    if result:
+        for line in result.strip().split("\n"):
+            parts = line.strip().split("|")
+            if len(parts) >= 4:
+                try:
+                    events.append({
+                        "title": parts[0].strip(),
+                        "date": parts[1].strip(),
+                        "category": parts[2].strip(),
+                        "importance": int(parts[3].strip()) if parts[3].strip().isdigit() else 5,
+                        "url": parts[4].strip() if len(parts) > 4 else None
+                    })
+                except:
+                    continue
+    return events
+
+def ai_sync_calendar(db_session):
+    """Sincroniza calendário usando IA - verifica datas e adiciona novos eventos."""
+    results = {
+        "verified": 0,
+        "updated": 0,
+        "added": 0,
+        "errors": []
+    }
+    
+    today = datetime.utcnow()
+    
+    # 1. Remover eventos passados (mais de 7 dias atrás)
+    old_events = db_session.query(CryptoEvent).filter(
+        CryptoEvent.date_event < today - timedelta(days=7)
+    ).all()
+    
+    for event in old_events:
+        db_session.delete(event)
+        results["verified"] += 1
+    
+    # 2. Verificar eventos existentes com IA
+    current_events = db_session.query(CryptoEvent).filter(
+        CryptoEvent.date_event >= today
+    ).order_by(CryptoEvent.date_event).limit(20).all()
+    
+    if current_events:
+        events_for_ai = [
+            {"title": e.title, "date": e.date_event.strftime("%Y-%m-%d"), "category": e.category}
+            for e in current_events
+        ]
+        
+        ai_response = ai_verify_event_dates(events_for_ai)
+        if ai_response and ai_response.strip() != "OK":
+            # Processar correções sugeridas pela IA
+            for line in ai_response.strip().split("\n"):
+                parts = line.split("|")
+                if len(parts) >= 2:
+                    try:
+                        event_title = parts[0].strip()
+                        new_date = parts[1].strip()
+                        
+                        # Buscar e atualizar evento
+                        event = db_session.query(CryptoEvent).filter(
+                            CryptoEvent.title.ilike(f"%{event_title[:30]}%")
+                        ).first()
+                        
+                        if event:
+                            event.date_event = datetime.strptime(new_date, "%Y-%m-%d")
+                            results["updated"] += 1
+                    except Exception as e:
+                        results["errors"].append(f"Update error: {e}")
+    
+    # 3. Buscar novos eventos com IA
+    new_events = ai_search_new_events()
+    for event_data in new_events:
+        try:
+            # Verificar se já existe
+            existing = db_session.query(CryptoEvent).filter(
+                CryptoEvent.title.ilike(f"%{event_data['title'][:30]}%")
+            ).first()
+            
+            if not existing:
+                event_date = datetime.strptime(event_data["date"], "%Y-%m-%d")
+                
+                # Só adicionar se for futuro
+                if event_date > today:
+                    event = CryptoEvent(
+                        title=event_data["title"],
+                        date_event=event_date,
+                        category=event_data.get("category", "conference"),
+                        importance=event_data.get("importance", 5),
+                        source="ai_generated",
+                        source_url=event_data.get("url")
+                    )
+                    db_session.add(event)
+                    results["added"] += 1
+        except Exception as e:
+            results["errors"].append(f"Add error: {e}")
+    
+    try:
+        db_session.commit()
+    except Exception as e:
+        db_session.rollback()
+        results["errors"].append(f"Commit error: {e}")
+    
+    return results
 
 # ============================================================
 # Calendário de Eventos Cripto
@@ -1656,6 +1820,31 @@ class AdminBot:
                 "• Federal Reserve Calendar\n"
                 "• Conferências 2026 pré-cadastradas",
                 build_calendar_menu())
+        
+        elif data == "calendar_ai_sync":
+            # Sincronizar com IA
+            self.api.edit_message(chat_id, message_id,
+                "🤖 <b>Sincronizando com IA...</b>\n\n"
+                "⏳ Verificando datas dos eventos...\n"
+                "⏳ Buscando novos eventos...\n\n"
+                "<i>Isso pode levar alguns segundos.</i>",
+                {"inline_keyboard": []})
+            
+            # Executar sincronização
+            results = ai_sync_calendar(self.db)
+            
+            # Mostrar resultados
+            text = "🤖 <b>Sincronização com IA Concluída!</b>\n\n"
+            text += f"🗑️ Eventos passados removidos: {results['verified']}\n"
+            text += f"📝 Eventos atualizados: {results['updated']}\n"
+            text += f"➕ Novos eventos adicionados: {results['added']}\n"
+            
+            if results['errors']:
+                text += f"\n⚠️ Erros: {len(results['errors'])}"
+            
+            text += "\n\n<i>O calendário agora está sincronizado!</i>"
+            
+            self.api.edit_message(chat_id, message_id, text, build_calendar_menu())
         
         elif data == "noop":
             pass  # Não faz nada (para separadores)
