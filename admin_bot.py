@@ -383,10 +383,88 @@ def build_schedule_menu(schedules):
     buttons = []
     for s in schedules:
         icon = "✅" if s.enabled else "❌"
-        buttons.append([{"text": f"{icon} {s.hour:02d}:{s.minute:02d} - {s.theme} ({s.max_posts} posts)", 
-                        "callback_data": f"toggle_schedule_{s.id}"}])
+        buttons.append([
+            {"text": f"{icon} {s.hour:02d}:{s.minute:02d} - {s.theme} ({s.max_posts})", 
+             "callback_data": f"toggle_schedule_{s.id}"},
+            {"text": "✏️", "callback_data": f"edit_schedule_{s.id}"},
+            {"text": "🗑️", "callback_data": f"delete_schedule_{s.id}"}
+        ])
     buttons.append([{"text": "➕ Adicionar Horário", "callback_data": "add_schedule"}])
+    buttons.append([{"text": "⚡ Auto Intervalos", "callback_data": "schedule_auto"}])
     buttons.append([{"text": "⬅️ Voltar", "callback_data": "menu_main"}])
+    return {"inline_keyboard": buttons}
+
+def build_schedule_hours_menu():
+    """Grid de horas para seleção."""
+    buttons = []
+    # 4 horas por linha
+    for row_start in range(0, 24, 4):
+        row = []
+        for h in range(row_start, min(row_start + 4, 24)):
+            row.append({"text": f"{h:02d}:00", "callback_data": f"sched_hour_{h}"})
+        buttons.append(row)
+    buttons.append([{"text": "❌ Cancelar", "callback_data": "menu_schedule"}])
+    return {"inline_keyboard": buttons}
+
+def build_schedule_theme_menu(hour):
+    """Menu de temas para o horário selecionado."""
+    themes = [
+        ("📰 Notícias Gerais", "news"),
+        ("📊 Análises", "analysis"),
+        ("🔗 On-Chain", "onchain"),
+        ("🐋 Whale Alerts", "whale"),
+        ("💥 Liquidações", "liquidation"),
+        ("🏦 Exchange News", "exchange"),
+        ("📈 Mercado/Preços", "market"),
+        ("🎯 Misto (Todos)", "mixed")
+    ]
+    buttons = []
+    for text, theme in themes:
+        buttons.append([{"text": text, "callback_data": f"sched_theme_{hour}_{theme}"}])
+    buttons.append([{"text": "❌ Cancelar", "callback_data": "menu_schedule"}])
+    return {"inline_keyboard": buttons}
+
+def build_schedule_quantity_menu(hour, theme):
+    """Menu de quantidade de posts."""
+    buttons = []
+    quantities = [1, 2, 3, 5, 10, 15, 20]
+    row = []
+    for q in quantities:
+        row.append({"text": str(q), "callback_data": f"sched_qty_{hour}_{theme}_{q}"})
+        if len(row) == 4:
+            buttons.append(row)
+            row = []
+    if row:
+        buttons.append(row)
+    buttons.append([{"text": "❌ Cancelar", "callback_data": "menu_schedule"}])
+    return {"inline_keyboard": buttons}
+
+def build_schedule_auto_menu():
+    """Menu de intervalos automáticos."""
+    buttons = [
+        [{"text": "⏱️ A cada 1 hora", "callback_data": "sched_auto_1"}],
+        [{"text": "⏱️ A cada 2 horas", "callback_data": "sched_auto_2"}],
+        [{"text": "⏱️ A cada 3 horas", "callback_data": "sched_auto_3"}],
+        [{"text": "⏱️ A cada 4 horas", "callback_data": "sched_auto_4"}],
+        [{"text": "⏱️ A cada 6 horas", "callback_data": "sched_auto_6"}],
+        [{"text": "⏱️ A cada 8 horas", "callback_data": "sched_auto_8"}],
+        [{"text": "⏱️ A cada 12 horas", "callback_data": "sched_auto_12"}],
+        [{"text": "❌ Cancelar", "callback_data": "menu_schedule"}]
+    ]
+    return {"inline_keyboard": buttons}
+
+def build_schedule_auto_theme_menu(interval):
+    """Menu de tema para intervalos automáticos."""
+    themes = [
+        ("📰 Notícias", "news"),
+        ("📊 Análises", "analysis"),
+        ("🐋 Whale", "whale"),
+        ("🎯 Misto", "mixed")
+    ]
+    buttons = []
+    for text, theme in themes:
+        buttons.append([{"text": text, "callback_data": f"sched_auto_set_{interval}_{theme}"}])
+    buttons.append([{"text": "❌ Cancelar", "callback_data": "menu_schedule"}])
     return {"inline_keyboard": buttons}
 
 def build_calendar_menu():
@@ -1264,7 +1342,10 @@ class AdminBot:
         elif data == "menu_schedule":
             schedules = self.db.query(ScheduledPost).all()
             self.api.edit_message(chat_id, message_id,
-                "⏰ <b>Horários de Postagem</b>\n\nConfigure quando postar:",
+                "⏰ <b>Horários de Postagem</b>\n\n"
+                f"📋 Total: {len(schedules)} horário(s) configurado(s)\n"
+                f"✅ Ativos: {len([s for s in schedules if s.enabled])}\n\n"
+                "Configure quando e o que postar:",
                 build_schedule_menu(schedules))
         
         elif data.startswith("toggle_schedule_"):
@@ -1275,15 +1356,136 @@ class AdminBot:
                 self.db.commit()
             schedules = self.db.query(ScheduledPost).all()
             self.api.edit_message(chat_id, message_id,
-                "⏰ <b>Horários de Postagem</b>\n\nConfigure quando postar:",
+                "⏰ <b>Horários de Postagem</b>\n\nHorário atualizado!",
+                build_schedule_menu(schedules))
+        
+        elif data.startswith("edit_schedule_"):
+            sched_id = int(data.replace("edit_schedule_", ""))
+            sched = self.db.query(ScheduledPost).filter_by(id=sched_id).first()
+            if sched:
+                self.api.edit_message(chat_id, message_id,
+                    f"✏️ <b>Editar Horário</b>\n\n"
+                    f"📍 Atual: {sched.hour:02d}:{sched.minute:02d}\n"
+                    f"🏷️ Tema: {sched.theme}\n"
+                    f"📊 Quantidade: {sched.max_posts}\n\n"
+                    "Selecione novo tema:",
+                    build_schedule_theme_menu(f"edit_{sched_id}"))
+        
+        elif data.startswith("delete_schedule_"):
+            sched_id = int(data.replace("delete_schedule_", ""))
+            sched = self.db.query(ScheduledPost).filter_by(id=sched_id).first()
+            if sched:
+                self.db.delete(sched)
+                self.db.commit()
+            schedules = self.db.query(ScheduledPost).all()
+            self.api.edit_message(chat_id, message_id,
+                "🗑️ <b>Horário removido!</b>\n\n⏰ <b>Horários de Postagem</b>:",
                 build_schedule_menu(schedules))
         
         elif data == "add_schedule":
-            self.awaiting_input[user_id] = ("schedule", None)
-            self.api.send_message(chat_id, 
-                "📝 Digite o horário no formato:\n<code>HH:MM tema quantidade</code>\n\n"
-                "Exemplo: <code>09:00 news 5</code>\n\n"
-                "Temas: news, analysis, onchain, whale, liquidation, exchange")
+            self.api.edit_message(chat_id, message_id,
+                "➕ <b>Adicionar Horário</b>\n\n"
+                "Selecione a hora para postagem automática:",
+                build_schedule_hours_menu())
+        
+        # Seleção de hora
+        elif data.startswith("sched_hour_"):
+            hour = data.replace("sched_hour_", "")
+            self.api.edit_message(chat_id, message_id,
+                f"🕐 <b>Horário: {hour}:00</b>\n\n"
+                "Agora selecione o tema das postagens:",
+                build_schedule_theme_menu(hour))
+        
+        # Seleção de tema
+        elif data.startswith("sched_theme_"):
+            parts = data.replace("sched_theme_", "").split("_")
+            hour_part = parts[0]
+            theme = parts[1]
+            
+            # Se é edição de horário existente
+            if hour_part.startswith("edit"):
+                sched_id = int(hour_part.replace("edit", ""))
+                self.api.edit_message(chat_id, message_id,
+                    f"🏷️ <b>Tema: {theme}</b>\n\n"
+                    "Selecione a quantidade de posts:",
+                    build_schedule_quantity_menu(f"edit{sched_id}", theme))
+            else:
+                hour = hour_part
+                self.api.edit_message(chat_id, message_id,
+                    f"🕐 Horário: {hour}:00\n"
+                    f"🏷️ Tema: {theme}\n\n"
+                    "Selecione a quantidade de posts por horário:",
+                    build_schedule_quantity_menu(hour, theme))
+        
+        # Seleção de quantidade (finaliza criação)
+        elif data.startswith("sched_qty_"):
+            parts = data.replace("sched_qty_", "").split("_")
+            hour_part = parts[0]
+            theme = parts[1]
+            qty = int(parts[2])
+            
+            # Se é edição de horário existente
+            if hour_part.startswith("edit"):
+                sched_id = int(hour_part.replace("edit", ""))
+                sched = self.db.query(ScheduledPost).filter_by(id=sched_id).first()
+                if sched:
+                    sched.theme = theme
+                    sched.max_posts = qty
+                    self.db.commit()
+                msg = f"✅ Horário atualizado!\n\n🏷️ Tema: {theme}\n📊 Quantidade: {qty} posts"
+            else:
+                hour = int(hour_part)
+                sched = ScheduledPost(hour=hour, minute=0, theme=theme, max_posts=qty)
+                self.db.add(sched)
+                self.db.commit()
+                msg = f"✅ Horário adicionado!\n\n🕐 {hour:02d}:00\n🏷️ Tema: {theme}\n📊 Quantidade: {qty} posts"
+            
+            schedules = self.db.query(ScheduledPost).all()
+            self.api.edit_message(chat_id, message_id,
+                f"{msg}\n\n⏰ <b>Horários de Postagem</b>:",
+                build_schedule_menu(schedules))
+        
+        # Menu de intervalos automáticos
+        elif data == "schedule_auto":
+            self.api.edit_message(chat_id, message_id,
+                "⚡ <b>Intervalos Automáticos</b>\n\n"
+                "Crie vários horários de uma vez!\n"
+                "Selecione o intervalo entre postagens:",
+                build_schedule_auto_menu())
+        
+        # Seleção de intervalo automático
+        elif data.startswith("sched_auto_") and not data.startswith("sched_auto_set_"):
+            interval = int(data.replace("sched_auto_", ""))
+            self.api.edit_message(chat_id, message_id,
+                f"⏱️ <b>Intervalo: a cada {interval} hora(s)</b>\n\n"
+                f"Serão criados {24 // interval} horários automáticos.\n\n"
+                "Selecione o tema das postagens:",
+                build_schedule_auto_theme_menu(interval))
+        
+        # Criar horários automáticos
+        elif data.startswith("sched_auto_set_"):
+            parts = data.replace("sched_auto_set_", "").split("_")
+            interval = int(parts[0])
+            theme = parts[1]
+            
+            # Criar horários automáticos
+            created = 0
+            for hour in range(0, 24, interval):
+                # Verificar se já existe
+                existing = self.db.query(ScheduledPost).filter_by(hour=hour, minute=0).first()
+                if not existing:
+                    sched = ScheduledPost(hour=hour, minute=0, theme=theme, max_posts=5)
+                    self.db.add(sched)
+                    created += 1
+            self.db.commit()
+            
+            schedules = self.db.query(ScheduledPost).all()
+            self.api.edit_message(chat_id, message_id,
+                f"✅ <b>{created} horários criados!</b>\n\n"
+                f"⏱️ Intervalo: a cada {interval}h\n"
+                f"🏷️ Tema: {theme}\n\n"
+                "⏰ <b>Horários de Postagem</b>:",
+                build_schedule_menu(schedules))
         
         # AI menu
         elif data == "menu_ai":
