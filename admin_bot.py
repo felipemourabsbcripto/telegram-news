@@ -1857,10 +1857,18 @@ class AdminBot:
     
     def answer_question(self, chat_id, reply_to_message_id, question, user_name=""):
         """Responde uma pergunta usando IA quando o bot é mencionado."""
+        BOT_NAME = "CriptonewsFelipeMoura"
+        
         if not question:
             self.api.send_message(chat_id, 
-                "🤖 Olá! Me faça uma pergunta sobre criptomoedas!\n\n"
-                "Exemplo: <i>@" + (self.bot_username or "bot") + " qual a previsão do Bitcoin?</i>",
+                f"📰 <b>Olá! Sou o {BOT_NAME}!</b>\n\n"
+                "Me pergunte sobre:\n"
+                "• 📊 Notícias do mercado cripto\n"
+                "• 💹 Momento atual do mercado\n"
+                "• 🔍 Análises de moedas\n"
+                "• 📈 Tendências e previsões\n"
+                "• 💡 Dicas e estratégias\n\n"
+                f"Exemplo: <i>@{self.bot_username or 'bot'} como está o Bitcoin hoje?</i>",
                 reply_to=reply_to_message_id)
             return
         
@@ -1870,54 +1878,87 @@ class AdminBot:
         except:
             pass
         
-        # Prompt especializado em cripto
-        system_prompt = """Você é um especialista em criptomoedas, blockchain e mercado financeiro digital.
-Responda de forma clara, objetiva e informativa em português brasileiro.
-Use emojis relevantes para tornar a resposta mais visual.
-Se a pergunta for sobre preços ou previsões, seja cauteloso e mencione que não é conselho financeiro.
-Mantenha as respostas concisas (máximo 3-4 parágrafos).
-Inclua dados e fatos quando possível."""
+        # Prompt especializado em notícias, análises e indicações
+        system_prompt = f"""Você é o {BOT_NAME}, um bot especialista em criptomoedas, blockchain e mercado financeiro digital.
 
-        prompt = f"""Pergunta do usuário {user_name}: {question}
+SEU FOCO:
+- Notícias recentes do mercado cripto
+- Análise do momento atual do mercado (alta, baixa, lateralizado)
+- Sentimento do mercado (Fear & Greed)
+- Movimentações importantes (baleias, ETFs, institucionais)
+- Previsões e análises técnicas
+- Dicas de investimento e estratégias
+- Explicações educacionais sobre cripto
 
-Responda de forma útil e informativa sobre criptomoedas/blockchain."""
+COMO RESPONDER:
+1. Seja direto e objetivo
+2. Use emojis para tornar visual (📈📉💹🔥⚠️🚀💎)
+3. Dê sua opinião quando perguntado
+4. Pode indicar se acha que vai subir ou cair
+5. Mencione níveis de suporte/resistência quando relevante
+6. Seja conciso (2-4 parágrafos)
+7. Responda em português brasileiro
+8. No final, sempre lembre que é opinião pessoal e não garantia
+
+EXEMPLOS DE FRASES:
+- "Na minha análise, o BTC está..."
+- "O mercado está mostrando sinais de..."
+- "Minha opinião: pode ser bom momento para..."
+- "Fique atento ao nível de..."
+- "Lembrando: isso é minha análise, faça sua própria pesquisa!"""
+
+        prompt = f"""Pergunta de {user_name}: {question}
+
+Responda sobre o mercado cripto. Pode dar sua opinião e análise."""
 
         try:
             response = call_groq_ai(prompt, system_prompt=system_prompt, max_tokens=800)
             
             if response:
-                # Formatar resposta
-                header = f"🤖 <b>Resposta para {user_name}:</b>\n\n" if user_name else "🤖 <b>Resposta:</b>\n\n"
+                # Formatar resposta com nome do bot
+                header = f"📰 <b>{BOT_NAME}</b>\n"
+                if user_name:
+                    header += f"<i>Para {user_name}:</i>\n\n"
+                else:
+                    header += "\n"
+                
                 message = header + response
                 
-                # Adicionar disclaimer para perguntas sobre preço
-                price_keywords = ["preço", "previsão", "vai subir", "vai cair", "investir", "comprar", "vender"]
-                if any(kw in question.lower() for kw in price_keywords):
-                    message += "\n\n⚠️ <i>Disclaimer: Isso não é conselho financeiro. Faça sua própria pesquisa.</i>"
+                # Adicionar disclaimer educado
+                message += "\n\n" + "─" * 20
+                message += "\n💡 <i>Essa é minha análise pessoal. Sempre faça sua própria pesquisa (DYOR) antes de investir!</i>"
+                message += f"\n\n🤖 <i>{BOT_NAME}</i>"
                 
                 self.api.send_message(chat_id, message, reply_to=reply_to_message_id)
             else:
                 self.api.send_message(chat_id, 
-                    "❌ Desculpe, não consegui processar sua pergunta. Tente novamente!",
+                    f"❌ Desculpe, não consegui processar sua pergunta. Tente novamente!\n\n🤖 <i>{BOT_NAME}</i>",
                     reply_to=reply_to_message_id)
         except Exception as e:
             logger.error(f"Error answering question: {e}")
             self.api.send_message(chat_id,
-                "❌ Ocorreu um erro ao processar sua pergunta. Tente novamente em alguns segundos.",
+                f"❌ Ocorreu um erro ao processar sua pergunta. Tente novamente em alguns segundos.\n\n🤖 <i>{BOT_NAME}</i>",
                 reply_to=reply_to_message_id)
     
     def show_help(self, chat_id):
+        BOT_NAME = "CriptonewsFelipeMoura"
         self.api.send_message(chat_id, f"""
+📰 <b>{BOT_NAME}</b>
+
 📖 <b>Comandos Disponíveis</b>
 
 /start ou /config - Abrir painel de configuração
 /status - Ver status atual
 /help - Esta mensagem
-/calendar - Calendário de eventos
+/calendar - Calendário de eventos cripto
 
-<b>💬 Pergunte ao Bot:</b>
+<b>💬 Pergunte sobre Notícias e Mercado:</b>
 Me marque com @{self.bot_username or 'bot'} + sua pergunta!
-Exemplo: <i>@{self.bot_username or 'bot'} o que é DeFi?</i>
+
+<b>Exemplos:</b>
+• <i>@{self.bot_username or 'bot'} como está o Bitcoin hoje?</i>
+• <i>@{self.bot_username or 'bot'} quais as notícias do Ethereum?</i>
+• <i>@{self.bot_username or 'bot'} qual o sentimento do mercado?</i>
 
 <b>Recursos:</b>
 • Configure fontes de notícias
