@@ -582,39 +582,39 @@ Responda APENAS com a categoria:"""
 # Calendário de Eventos Cripto
 # ============================================================
 
-# Eventos importantes de 2026 (pré-carregados)
+# Eventos importantes de 2026 (pré-carregados) - Com links oficiais
 CRYPTO_EVENTS_2026 = [
     # Conferências Principais
-    {"title": "ETHDenver 2026", "date": "2026-02-24", "end": "2026-03-02", "category": "conference", "location": "Denver, EUA", "importance": 9},
-    {"title": "Bitcoin 2026 Conference", "date": "2026-05-15", "end": "2026-05-17", "category": "conference", "location": "Nashville, EUA", "importance": 10},
-    {"title": "Consensus 2026 (CoinDesk)", "date": "2026-05-26", "end": "2026-05-28", "category": "conference", "location": "Miami, EUA", "importance": 10},
-    {"title": "Web Summit Rio 2026", "date": "2026-06-15", "end": "2026-06-18", "category": "conference", "location": "Rio de Janeiro, Brasil", "importance": 8},
-    {"title": "Paris Blockchain Week 2026", "date": "2026-04-07", "end": "2026-04-11", "category": "conference", "location": "Paris, França", "importance": 9},
-    {"title": "Token2049 Singapore", "date": "2026-09-14", "end": "2026-09-15", "category": "conference", "location": "Singapura", "importance": 9},
-    {"title": "Token2049 Dubai", "date": "2026-04-28", "end": "2026-04-29", "category": "conference", "location": "Dubai, UAE", "importance": 9},
-    {"title": "Blockchain Rio 2026", "date": "2026-08-10", "end": "2026-08-12", "category": "conference", "location": "Rio de Janeiro, Brasil", "importance": 8},
-    {"title": "Gramado Summit 2026", "date": "2026-09-20", "end": "2026-09-22", "category": "conference", "location": "Gramado, Brasil", "importance": 7},
-    {"title": "Blockchain Life 2026", "date": "2026-12-08", "end": "2026-12-10", "category": "conference", "location": "Dubai, UAE", "importance": 9},
-    {"title": "Consensus Hong Kong 2026", "date": "2026-11-10", "end": "2026-11-12", "category": "conference", "location": "Hong Kong", "importance": 9},
-    {"title": "NFT.NYC 2026", "date": "2026-04-15", "end": "2026-04-17", "category": "conference", "location": "New York, EUA", "importance": 8},
-    {"title": "Devcon 2026", "date": "2026-10-20", "end": "2026-10-23", "category": "conference", "location": "TBA", "importance": 10},
+    {"title": "ETHDenver 2026", "date": "2026-02-24", "end": "2026-03-02", "category": "conference", "location": "Denver, EUA", "importance": 9, "url": "https://www.ethdenver.com/"},
+    {"title": "Bitcoin 2026 Conference", "date": "2026-05-15", "end": "2026-05-17", "category": "conference", "location": "Nashville, EUA", "importance": 10, "url": "https://b.tc/conference"},
+    {"title": "Consensus 2026 (CoinDesk)", "date": "2026-05-26", "end": "2026-05-28", "category": "conference", "location": "Miami, EUA", "importance": 10, "url": "https://consensus.coindesk.com/"},
+    {"title": "Web Summit Rio 2026", "date": "2026-06-15", "end": "2026-06-18", "category": "conference", "location": "Rio de Janeiro, Brasil", "importance": 8, "url": "https://rio.websummit.com/"},
+    {"title": "Paris Blockchain Week 2026", "date": "2026-04-07", "end": "2026-04-11", "category": "conference", "location": "Paris, França", "importance": 9, "url": "https://www.parisblockchainweek.com/"},
+    {"title": "Token2049 Singapore", "date": "2026-09-14", "end": "2026-09-15", "category": "conference", "location": "Singapura", "importance": 9, "url": "https://www.token2049.com/"},
+    {"title": "Token2049 Dubai", "date": "2026-04-28", "end": "2026-04-29", "category": "conference", "location": "Dubai, UAE", "importance": 9, "url": "https://www.token2049.com/"},
+    {"title": "Blockchain Rio 2026", "date": "2026-08-10", "end": "2026-08-12", "category": "conference", "location": "Rio de Janeiro, Brasil", "importance": 8, "url": "https://www.blockchainrio.com.br/"},
+    {"title": "Gramado Summit 2026", "date": "2026-09-20", "end": "2026-09-22", "category": "conference", "location": "Gramado, Brasil", "importance": 7, "url": "https://gramadosummit.com/"},
+    {"title": "Blockchain Life 2026", "date": "2026-12-08", "end": "2026-12-10", "category": "conference", "location": "Dubai, UAE", "importance": 9, "url": "https://blockchain-life.com/"},
+    {"title": "Consensus Hong Kong 2026", "date": "2026-11-10", "end": "2026-11-12", "category": "conference", "location": "Hong Kong", "importance": 9, "url": "https://consensus-hongkong.coindesk.com/"},
+    {"title": "NFT.NYC 2026", "date": "2026-04-15", "end": "2026-04-17", "category": "conference", "location": "New York, EUA", "importance": 8, "url": "https://www.nft.nyc/"},
+    {"title": "Devcon 2026", "date": "2026-10-20", "end": "2026-10-23", "category": "conference", "location": "TBA", "importance": 10, "url": "https://devcon.org/"},
     
     # Discursos e Reuniões Econômicas Importantes
-    {"title": "FOMC Meeting - Fed", "date": "2026-01-28", "category": "speech", "location": "Washington, EUA", "importance": 10, "coin": "BTC"},
-    {"title": "FOMC Meeting - Fed", "date": "2026-03-18", "category": "speech", "location": "Washington, EUA", "importance": 10, "coin": "BTC"},
-    {"title": "FOMC Meeting - Fed", "date": "2026-05-06", "category": "speech", "location": "Washington, EUA", "importance": 10, "coin": "BTC"},
-    {"title": "FOMC Meeting - Fed", "date": "2026-06-17", "category": "speech", "location": "Washington, EUA", "importance": 10, "coin": "BTC"},
-    {"title": "FOMC Meeting - Fed", "date": "2026-07-29", "category": "speech", "location": "Washington, EUA", "importance": 10, "coin": "BTC"},
-    {"title": "FOMC Meeting - Fed", "date": "2026-09-16", "category": "speech", "location": "Washington, EUA", "importance": 10, "coin": "BTC"},
-    {"title": "FOMC Meeting - Fed", "date": "2026-11-04", "category": "speech", "location": "Washington, EUA", "importance": 10, "coin": "BTC"},
-    {"title": "FOMC Meeting - Fed", "date": "2026-12-16", "category": "speech", "location": "Washington, EUA", "importance": 10, "coin": "BTC"},
-    {"title": "Jackson Hole Symposium", "date": "2026-08-27", "end": "2026-08-29", "category": "speech", "location": "Wyoming, EUA", "importance": 10, "coin": "BTC"},
-    {"title": "World Economic Forum Davos", "date": "2026-01-19", "end": "2026-01-23", "category": "speech", "location": "Davos, Suíça", "importance": 9},
-    {"title": "G20 Summit 2026", "date": "2026-11-21", "end": "2026-11-22", "category": "speech", "location": "TBA", "importance": 9},
+    {"title": "FOMC Meeting - Fed (Janeiro)", "date": "2026-01-28", "category": "speech", "location": "Washington, EUA", "importance": 10, "coin": "BTC", "url": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm"},
+    {"title": "FOMC Meeting - Fed (Março)", "date": "2026-03-18", "category": "speech", "location": "Washington, EUA", "importance": 10, "coin": "BTC", "url": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm"},
+    {"title": "FOMC Meeting - Fed (Maio)", "date": "2026-05-06", "category": "speech", "location": "Washington, EUA", "importance": 10, "coin": "BTC", "url": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm"},
+    {"title": "FOMC Meeting - Fed (Junho)", "date": "2026-06-17", "category": "speech", "location": "Washington, EUA", "importance": 10, "coin": "BTC", "url": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm"},
+    {"title": "FOMC Meeting - Fed (Julho)", "date": "2026-07-29", "category": "speech", "location": "Washington, EUA", "importance": 10, "coin": "BTC", "url": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm"},
+    {"title": "FOMC Meeting - Fed (Setembro)", "date": "2026-09-16", "category": "speech", "location": "Washington, EUA", "importance": 10, "coin": "BTC", "url": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm"},
+    {"title": "FOMC Meeting - Fed (Novembro)", "date": "2026-11-04", "category": "speech", "location": "Washington, EUA", "importance": 10, "coin": "BTC", "url": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm"},
+    {"title": "FOMC Meeting - Fed (Dezembro)", "date": "2026-12-16", "category": "speech", "location": "Washington, EUA", "importance": 10, "coin": "BTC", "url": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm"},
+    {"title": "Jackson Hole Symposium", "date": "2026-08-27", "end": "2026-08-29", "category": "speech", "location": "Wyoming, EUA", "importance": 10, "coin": "BTC", "url": "https://www.kansascityfed.org/research/jackson-hole-economic-symposium/"},
+    {"title": "World Economic Forum Davos", "date": "2026-01-19", "end": "2026-01-23", "category": "speech", "location": "Davos, Suíça", "importance": 9, "url": "https://www.weforum.org/events/world-economic-forum-annual-meeting-2026/"},
+    {"title": "G20 Summit 2026", "date": "2026-11-21", "end": "2026-11-22", "category": "speech", "location": "África do Sul", "importance": 9, "url": "https://www.g20.org/"},
     
     # Updates e Lançamentos Esperados
-    {"title": "Ethereum Pectra Upgrade", "date": "2026-03-15", "category": "launch", "coin": "ETH", "importance": 10},
-    {"title": "Bitcoin Halving Cycle Analysis", "date": "2026-04-15", "category": "launch", "coin": "BTC", "importance": 8},
+    {"title": "Ethereum Pectra Upgrade", "date": "2026-03-15", "category": "launch", "coin": "ETH", "importance": 10, "url": "https://ethereum.org/en/roadmap/"},
+    {"title": "Bitcoin Halving Cycle Analysis", "date": "2026-04-15", "category": "launch", "coin": "BTC", "importance": 8, "url": "https://www.bitcoinblockhalf.com/"},
 ]
 
 def scrape_coinmarketcal_events():
@@ -710,10 +710,15 @@ def fetch_and_save_events(db_session):
                     coin=event_data.get("coin"),
                     location=event_data.get("location"),
                     importance=event_data.get("importance", 5),
-                    source="manual"
+                    source="manual",
+                    source_url=event_data.get("url")  # Salvar URL do evento
                 )
                 db_session.add(event)
                 saved += 1
+            else:
+                # Atualizar URL se existir e não tiver
+                if not existing.source_url and event_data.get("url"):
+                    existing.source_url = event_data.get("url")
         except Exception as e:
             logger.error(f"Error saving event: {e}")
             db_session.rollback()
@@ -778,7 +783,7 @@ def get_events_for_period(db_session, start_date, end_date, category=None):
     return query.order_by(CryptoEvent.date_event).all()
 
 def format_event_message(event):
-    """Formata um evento para mensagem."""
+    """Formata um evento para mensagem com link."""
     icons = {
         "conference": "🎪",
         "speech": "🎤",
@@ -794,7 +799,12 @@ def format_event_message(event):
     if event.end_date and event.end_date != event.date_event:
         date_str += f" - {event.end_date.strftime('%d/%m/%Y')}"
     
-    msg = f"{icon} <b>{event.title}</b>\n"
+    # Título com link se disponível
+    if event.source_url:
+        msg = f"{icon} <b><a href='{event.source_url}'>{event.title}</a></b>\n"
+    else:
+        msg = f"{icon} <b>{event.title}</b>\n"
+    
     msg += f"📅 {date_str}\n"
     
     if event.location:
@@ -803,6 +813,10 @@ def format_event_message(event):
         msg += f"🪙 {event.coin}\n"
     if event.importance >= 8:
         msg += f"⭐ Importância: {'⭐' * min(event.importance, 10)}\n"
+    
+    # Link separado para melhor visualização
+    if event.source_url:
+        msg += f"🔗 <a href='{event.source_url}'>Mais informações</a>\n"
     
     return msg
 
