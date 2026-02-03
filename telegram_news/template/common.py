@@ -664,7 +664,7 @@ class NewsPostman(object):
 
     def set_table_name(self, new_table_name):
         self._table_name = new_table_name
-        rows = self._db.execute("SELECT COUNT(*) FROM information_schema.tables WHERE table_name = :new_table_name ;",
+        rows = self._db.execute(text("SELECT COUNT(*) FROM information_schema.tables WHERE table_name = :new_table_name"),
                                 {"new_table_name": new_table_name})
         if rows.fetchone()[0] == 1:
             print('Set table name \"' + new_table_name + '\" successfully, table already exists!')
@@ -695,7 +695,7 @@ class NewsPostman(object):
         self._max_table_rows = num
 
     def _clean_database(self):
-        query = "SELECT COUNT(*) FROM {}".format(self._table_name)
+        query = text("SELECT COUNT(*) FROM {}".format(self._table_name))
         rows = self._db.execute(query)
         # If the items in database exceed 2 of 3 of max rows, begin to delete old 1 of 3 of max rows
         rows_num = rows.fetchone()[0]
@@ -704,14 +704,14 @@ class NewsPostman(object):
         if rows_num > 2 * ((self._max_table_rows - 3) / 3):
             delete_number = int(self._max_table_rows / 3)
             print('delete ', delete_number)
-            query = "DELETE FROM {} WHERE id IN ( SELECT id FROM {} ORDER BY id ASC LIMIT :delete_number )" \
-                .format(self._table_name, self._table_name)
+            query = text("DELETE FROM {} WHERE id IN ( SELECT id FROM {} ORDER BY id ASC LIMIT :delete_number )"
+                .format(self._table_name, self._table_name))
             self._db.execute(query, {"delete_number": str(delete_number)})
             self._db.commit()
             print('\033[33mClean database finished!\033[0m')
 
     def _insert_one_item(self, news_id):
-        query = "INSERT INTO {} (news_id, time) VALUES (:news_id, NOW())".format(self._table_name)
+        query = text("INSERT INTO {} (news_id, time) VALUES (:news_id, NOW())".format(self._table_name))
         self._db.execute(query, {"news_id": news_id})
         # Commit changes to database
         self._db.commit()
