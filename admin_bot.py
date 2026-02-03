@@ -1501,7 +1501,11 @@ class AdminBot:
                 if event_date != current_date:
                     current_date = event_date
                     text += f"\n<b>📅 {event_date.strftime('%d/%m (%a)')}</b>\n"
-                text += f"  • {event.title}"
+                # Com link se disponível
+                if event.source_url:
+                    text += f"  • <a href='{event.source_url}'>{event.title}</a>"
+                else:
+                    text += f"  • {event.title}"
                 if event.coin:
                     text += f" [{event.coin}]"
                 text += "\n"
@@ -1526,10 +1530,12 @@ class AdminBot:
             for event in events[:15]:  # Limitar para não ficar muito longo
                 date_str = event.date_event.strftime("%d/%m")
                 icon = {"conference": "🎪", "speech": "🎤", "launch": "🚀"}.get(event.category, "📅")
-                text += f"{icon} <b>{date_str}</b> - {event.title[:40]}"
-                if len(event.title) > 40:
-                    text += "..."
-                text += "\n"
+                # Com link se disponível
+                title_display = event.title[:40] + ("..." if len(event.title) > 40 else "")
+                if event.source_url:
+                    text += f"{icon} <b>{date_str}</b> - <a href='{event.source_url}'>{title_display}</a>\n"
+                else:
+                    text += f"{icon} <b>{date_str}</b> - {title_display}\n"
             
             if len(events) > 15:
                 text += f"\n<i>... e mais {len(events) - 15} eventos</i>"
@@ -1554,10 +1560,16 @@ class AdminBot:
         if events:
             for event in events[:10]:
                 date_str = event.date_event.strftime("%d/%m/%Y")
-                text += f"🎤 <b>{event.title}</b>\n"
+                # Título com link se disponível
+                if event.source_url:
+                    text += f"🎤 <a href='{event.source_url}'><b>{event.title}</b></a>\n"
+                else:
+                    text += f"🎤 <b>{event.title}</b>\n"
                 text += f"   📅 {date_str}"
                 if event.location:
                     text += f" | 📍 {event.location}"
+                if event.source_url:
+                    text += f" ❤️"
                 text += "\n\n"
         else:
             text += "<i>Nenhum discurso agendado.</i>\n"
@@ -1586,10 +1598,16 @@ class AdminBot:
                 
                 stars = "⭐" * min(event.importance // 2, 5) if event.importance >= 8 else ""
                 
-                text += f"🎪 <b>{event.title}</b> {stars}\n"
+                # Título com link se disponível
+                if event.source_url:
+                    text += f"🎪 <a href='{event.source_url}'><b>{event.title}</b></a> {stars}\n"
+                else:
+                    text += f"🎪 <b>{event.title}</b> {stars}\n"
                 text += f"   📅 {date_str}"
                 if event.location:
                     text += f" | 📍 {event.location}"
+                if event.source_url:
+                    text += f" ❤️"
                 text += "\n\n"
         else:
             text += "<i>Nenhuma conferência cadastrada.</i>\n"
@@ -1611,10 +1629,16 @@ class AdminBot:
         if events:
             for event in events[:10]:
                 date_str = event.date_event.strftime("%d/%m/%Y")
-                text += f"🚀 <b>{event.title}</b>\n"
+                # Título com link se disponível
+                if event.source_url:
+                    text += f"🚀 <a href='{event.source_url}'><b>{event.title}</b></a>\n"
+                else:
+                    text += f"🚀 <b>{event.title}</b>\n"
                 text += f"   📅 {date_str}"
                 if event.coin:
                     text += f" | 🪙 {event.coin}"
+                if event.source_url:
+                    text += f" ❤️"
                 text += "\n\n"
         else:
             text += "<i>Nenhum lançamento agendado.</i>\n"
