@@ -3073,15 +3073,32 @@ def main():
     # Migração: adicionar colunas de tópicos se não existirem
     try:
         with engine.connect() as conn:
-            # Verificar se a coluna topic_id existe
-            result = conn.execute(text("PRAGMA table_info(bot_groups)"))
-            columns = [row[1] for row in result.fetchall()]
+            # Detectar tipo de banco (PostgreSQL ou SQLite)
+            is_postgres = 'postgresql' in DATABASE_URL or 'postgres' in DATABASE_URL
             
-            if 'topic_id' not in columns:
-                conn.execute(text("ALTER TABLE bot_groups ADD COLUMN topic_id INTEGER"))
-                conn.execute(text("ALTER TABLE bot_groups ADD COLUMN topic_name VARCHAR(200)"))
-                conn.commit()
-                logger.info("Migration: Added topic columns to bot_groups")
+            if is_postgres:
+                # PostgreSQL: verificar colunas existentes
+                result = conn.execute(text("""
+                    SELECT column_name FROM information_schema.columns 
+                    WHERE table_name = 'bot_groups'
+                """))
+                columns = [row[0] for row in result.fetchall()]
+                
+                if 'topic_id' not in columns:
+                    conn.execute(text("ALTER TABLE bot_groups ADD COLUMN topic_id INTEGER"))
+                    conn.execute(text("ALTER TABLE bot_groups ADD COLUMN topic_name VARCHAR(200)"))
+                    conn.commit()
+                    logger.info("Migration: Added topic columns to bot_groups (PostgreSQL)")
+            else:
+                # SQLite
+                result = conn.execute(text("PRAGMA table_info(bot_groups)"))
+                columns = [row[1] for row in result.fetchall()]
+                
+                if 'topic_id' not in columns:
+                    conn.execute(text("ALTER TABLE bot_groups ADD COLUMN topic_id INTEGER"))
+                    conn.execute(text("ALTER TABLE bot_groups ADD COLUMN topic_name VARCHAR(200)"))
+                    conn.commit()
+                    logger.info("Migration: Added topic columns to bot_groups (SQLite)")
     except Exception as e:
         logger.warning(f"Migration check: {e}")
     
