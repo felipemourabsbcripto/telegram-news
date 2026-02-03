@@ -20,6 +20,7 @@ from time import sleep
 
 import requests
 import sqlalchemy
+from sqlalchemy import text
 from bs4 import BeautifulSoup
 
 from ..displaypolicy import (
@@ -1095,7 +1096,7 @@ class NewsPostman(object):
         return res
 
     def _is_posted(self, news_id):
-        query = "SELECT * FROM {} WHERE news_id = :news_id".format(self._table_name)
+        query = text("SELECT * FROM {} WHERE news_id = :news_id".format(self._table_name))
         rows = self._db.execute(query, {"news_id": str(news_id)})
         if rows.rowcount == 0:
             return False
