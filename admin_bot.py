@@ -641,7 +641,7 @@ class ConfigManager:
             row = self.db.query(BotConfig).filter_by(key="main_config").first()
             if row:
                 row.value = json.dumps(config)
-                row.updated_at = datetime.utcnow()
+                row.updated_at = utcnow()
             else:
                 row = BotConfig(key="main_config", value=json.dumps(config))
                 self.db.add(row)
@@ -799,7 +799,7 @@ def ai_verify_event_dates(events_list):
     if not GROQ_API_KEY:
         return None
     
-    today = datetime.utcnow().strftime("%Y-%m-%d")
+    today = utcnow().strftime("%Y-%m-%d")
     
     # Preparar lista de eventos para IA analisar
     events_text = "\n".join([
@@ -827,7 +827,7 @@ def ai_search_new_events():
     if not GROQ_API_KEY:
         return []
     
-    today = datetime.utcnow()
+    today = utcnow()
     month_names = {
         1: "janeiro", 2: "fevereiro", 3: "março", 4: "abril",
         5: "maio", 6: "junho", 7: "julho", 8: "agosto",
@@ -879,7 +879,7 @@ def ai_sync_calendar(db_session):
         "errors": []
     }
     
-    today = datetime.utcnow()
+    today = utcnow()
     
     # 1. Remover eventos passados (mais de 7 dias atrás)
     old_events = db_session.query(CryptoEvent).filter(
@@ -1118,7 +1118,7 @@ def fetch_and_save_events(db_session):
                         continue
                 
                 if not event_date:
-                    event_date = datetime.utcnow() + timedelta(days=30)  # Default
+                    event_date = utcnow() + timedelta(days=30)  # Default
                 
                 # Verificar duplicata
                 existing = db_session.query(CryptoEvent).filter(
@@ -1254,7 +1254,7 @@ def check_and_send_event_alerts(db_session, api, send_list, config):
     if not cal_config.get("alerts_enabled", True):
         return 0
     
-    now = datetime.utcnow()
+    now = utcnow()
     alerts_sent = 0
     
     # Alerta 1 dia antes
@@ -1894,7 +1894,7 @@ class AdminBot:
             self.api.edit_message(chat_id, message_id, text, keyboard)
         
         elif data == "analytics_themes":
-            week_ago = datetime.utcnow() - timedelta(days=7)
+            week_ago = utcnow() - timedelta(days=7)
             posts = self.db.query(PostAnalytics).filter(PostAnalytics.posted_at >= week_ago).all()
             by_theme = {}
             for p in posts:
@@ -2034,7 +2034,7 @@ class AdminBot:
     # ============================================================
     def show_calendar_today(self, chat_id, message_id=None):
         """Mostra eventos de hoje."""
-        today = datetime.utcnow().date()
+        today = utcnow().date()
         events = get_events_for_period(
             self.db,
             datetime.combine(today, datetime.min.time()),
@@ -2057,7 +2057,7 @@ class AdminBot:
     
     def show_calendar_week(self, chat_id, message_id=None):
         """Mostra eventos dos próximos 7 dias."""
-        now = datetime.utcnow()
+        now = utcnow()
         events = get_events_for_period(self.db, now, now + timedelta(days=7))
         
         text = "📆 <b>Próximos 7 Dias</b>\n\n"
@@ -2088,7 +2088,7 @@ class AdminBot:
     
     def show_calendar_month(self, chat_id, message_id=None):
         """Mostra eventos dos próximos 30 dias."""
-        now = datetime.utcnow()
+        now = utcnow()
         events = get_events_for_period(self.db, now, now + timedelta(days=30))
         
         text = "🗓️ <b>Próximos 30 Dias</b>\n\n"
@@ -2118,7 +2118,7 @@ class AdminBot:
     
     def show_calendar_speeches(self, chat_id, message_id=None):
         """Mostra discursos e falas importantes."""
-        now = datetime.utcnow()
+        now = utcnow()
         events = get_events_for_period(self.db, now, now + timedelta(days=90), category="speech")
         
         text = "🎤 <b>Discursos & Falas Importantes</b>\n\n"
@@ -2152,7 +2152,7 @@ class AdminBot:
     
     def show_calendar_conferences(self, chat_id, message_id=None):
         """Mostra conferências de 2026."""
-        now = datetime.utcnow()
+        now = utcnow()
         events = get_events_for_period(self.db, now, now + timedelta(days=365), category="conference")
         
         text = "🎪 <b>Conferências Cripto 2026</b>\n\n"
@@ -2188,7 +2188,7 @@ class AdminBot:
     
     def show_calendar_launches(self, chat_id, message_id=None):
         """Mostra lançamentos e updates."""
-        now = datetime.utcnow()
+        now = utcnow()
         events = get_events_for_period(self.db, now, now + timedelta(days=90), category="launch")
         
         text = "🚀 <b>Lançamentos & Updates</b>\n\n"
@@ -2499,7 +2499,7 @@ class AdminBot:
     
     def get_analytics_today(self):
         """Retorna métricas de hoje."""
-        today = datetime.utcnow().date()
+        today = utcnow().date()
         posts = self.db.query(PostAnalytics).filter(
             PostAnalytics.posted_at >= datetime.combine(today, datetime.min.time())
         ).all()
@@ -2528,7 +2528,7 @@ class AdminBot:
     
     def get_analytics_week(self):
         """Retorna métricas da semana."""
-        week_ago = datetime.utcnow() - timedelta(days=7)
+        week_ago = utcnow() - timedelta(days=7)
         posts = self.db.query(PostAnalytics).filter(
             PostAnalytics.posted_at >= week_ago
         ).all()
@@ -2571,7 +2571,7 @@ class AdminBot:
     def refresh_analytics(self):
         """Atualiza métricas dos posts via Telegram API."""
         posts = self.db.query(PostAnalytics).filter(
-            PostAnalytics.posted_at >= datetime.utcnow() - timedelta(days=7)
+            PostAnalytics.posted_at >= utcnow() - timedelta(days=7)
         ).all()
         
         updated = 0
@@ -3027,7 +3027,7 @@ def run_news_fetcher(db_session, config_mgr):
                                 title=data.get("title", "")[:500],
                                 link=data.get("link", ""),
                                 theme=theme,
-                                posted_at=datetime.utcnow()
+                                posted_at=utcnow()
                             )
                             db_session.add(analytics)
                             db_session.commit()
