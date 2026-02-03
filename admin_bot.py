@@ -95,6 +95,17 @@ class CryptoEvent(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     external_id = Column(String(100), nullable=True)  # ID externo para evitar duplicatas
 
+class BotGroup(Base):
+    """Grupos/Canais onde o bot envia notícias."""
+    __tablename__ = 'bot_groups'
+    id = Column(Integer, primary_key=True)
+    chat_id = Column(String(100), unique=True)  # ID do chat/grupo/canal
+    title = Column(String(500))  # Nome do grupo/canal
+    chat_type = Column(String(50))  # channel, group, supergroup
+    enabled = Column(Boolean, default=True)
+    added_at = Column(DateTime, default=datetime.utcnow)
+    added_by = Column(String(100), nullable=True)  # User ID de quem adicionou
+
 # ============================================================
 # Default Configuration
 # ============================================================
@@ -188,6 +199,14 @@ class TelegramAPI:
             "text": text
         })
     
+    def get_chat(self, chat_id):
+        """Obtém informações de um chat/grupo/canal."""
+        try:
+            response = requests.post(f"{self.base_url}/getChat", {"chat_id": chat_id})
+            return response.json()
+        except:
+            return None
+    
     def get_updates(self, offset=None, timeout=30):
         params = {"timeout": timeout}
         if offset:
@@ -206,6 +225,7 @@ def build_main_menu():
         "inline_keyboard": [
             [{"text": "📰 Fontes", "callback_data": "menu_sources"}],
             [{"text": "📅 Calendário Cripto", "callback_data": "menu_calendar"}],
+            [{"text": "👥 Grupos/Canais", "callback_data": "menu_groups"}],
             [{"text": "⏰ Horários", "callback_data": "menu_schedule"}],
             [{"text": "📝 Formato", "callback_data": "menu_format"}],
             [{"text": "🏷️ Temas", "callback_data": "menu_themes"}],
@@ -214,6 +234,22 @@ def build_main_menu():
             [{"text": "▶️ Status", "callback_data": "menu_status"}],
         ]
     }
+
+def build_groups_menu(groups):
+    """Menu de grupos/canais onde o bot envia notícias."""
+    buttons = []
+    for g in groups:
+        icon = "✅" if g.enabled else "❌"
+        type_icon = "📢" if g.chat_type == "channel" else "👥"
+        title = g.title[:25] + "..." if len(g.title) > 25 else g.title
+        buttons.append([
+            {"text": f"{icon} {type_icon} {title}", "callback_data": f"toggle_group_{g.id}"},
+            {"text": "🗑️", "callback_data": f"delete_group_{g.id}"}
+        ])
+    buttons.append([{"text": "➕ Adicionar Grupo/Canal", "callback_data": "add_group"}])
+    buttons.append([{"text": "📋 Como Adicionar", "callback_data": "group_help"}])
+    buttons.append([{"text": "⬅️ Voltar", "callback_data": "menu_main"}])
+    return {"inline_keyboard": buttons}
 
 def build_sources_menu(config):
     sources = config.get("sources_enabled", {})
@@ -871,14 +907,18 @@ def send_event_alert(api, channel_id, event, alert_type="upcoming"):
         msg += f"\n\n🔗 <a href='{event.source_url}'>Mais informações</a>"
     
     try:
-        api.send_message(channel_id, msg)
+        for target_id in channel_id if isinstance(channel_id, list) else [channel_id]:
+            try:
+                api.send_message(target_id, msg)
+            except Exception as e:
+                logger.error(f"Error sending event alert to {target_id}: {e}")
         return True
     except Exception as e:
         logger.error(f"Error sending event alert: {e}")
         return False
 
-def check_and_send_event_alerts(db_session, api, channel_id, config):
-    """Verifica e envia alertas de eventos próximos."""
+def check_and_send_event_alerts(db_session, api, send_list, config):
+    """Verifica e envia alertas de eventos próximos para todos os grupos/canais."""
     cal_config = config.get("calendar", {})
     
     if not cal_config.get("alerts_enabled", True):
@@ -905,7 +945,7 @@ def check_and_send_event_alerts(db_session, api, channel_id, config):
             if event.category == "launch" and not cal_config.get("alert_launches", True):
                 continue
             
-            if send_event_alert(api, channel_id, event, "1day"):
+            if send_event_alert(api, send_list, event, "1day"):
                 event.alert_1day_sent = True
                 alerts_sent += 1
     
@@ -919,7 +959,7 @@ def check_and_send_event_alerts(db_session, api, channel_id, config):
         ).all()
         
         for event in events:
-            if send_event_alert(api, channel_id, event, "1hour"):
+            if send_event_alert(api, send_list, event, "1hour"):
                 event.alert_1hour_sent = True
                 alerts_sent += 1
     
@@ -1003,6 +1043,9 @@ class AdminBot:
                 return
             elif await_type == "calendar_add":
                 self.process_calendar_add(chat_id, text)
+                return
+            elif await_type == "add_group":
+                self.process_add_group(chat_id, text, user_id)
                 return
         
         # Verificar se o bot foi mencionado (@username)
@@ -1130,6 +1173,59 @@ class AdminBot:
                 self.api.edit_message(chat_id, message_id,
                     "❌ Fonte não encontrada.",
                     build_popular_sources_menu())
+        
+        # Groups menu
+        elif data == "menu_groups":
+            groups = self.get_all_groups()
+            self.api.edit_message(chat_id, message_id,
+                "👥 <b>Grupos/Canais</b>\n\n"
+                "Gerencie onde o bot envia notícias.\n"
+                f"Total: {len(groups)} grupo(s)/canal(is)",
+                build_groups_menu(groups))
+        
+        elif data.startswith("toggle_group_"):
+            group_id = int(data.replace("toggle_group_", ""))
+            self.toggle_group(group_id)
+            groups = self.get_all_groups()
+            self.api.edit_message(chat_id, message_id,
+                "👥 <b>Grupos/Canais</b>\n\nGrupo atualizado!",
+                build_groups_menu(groups))
+        
+        elif data.startswith("delete_group_"):
+            group_id = int(data.replace("delete_group_", ""))
+            self.delete_group(group_id)
+            groups = self.get_all_groups()
+            self.api.edit_message(chat_id, message_id,
+                "🗑️ <b>Grupo removido!</b>\n\n👥 <b>Grupos/Canais</b>:",
+                build_groups_menu(groups))
+        
+        elif data == "add_group":
+            self.awaiting_input[user_id] = ("add_group", None)
+            self.api.send_message(chat_id,
+                "➕ <b>Adicionar Grupo/Canal</b>\n\n"
+                "<b>Opção 1 - Pelo ID:</b>\n"
+                "Envie o ID do chat (ex: <code>-1001234567890</code>)\n\n"
+                "<b>Opção 2 - Pelo username:</b>\n"
+                "Envie o @ do canal (ex: <code>@meucanal</code>)\n\n"
+                "<b>⚠️ Importante:</b>\n"
+                "• O bot deve ser <b>admin</b> do grupo/canal\n"
+                "• Para canais, use o ID ou @username\n"
+                "• Para grupos, adicione o bot e use /start lá")
+        
+        elif data == "group_help":
+            self.api.send_message(chat_id,
+                "📋 <b>Como Adicionar um Grupo/Canal</b>\n\n"
+                "<b>Para Canais:</b>\n"
+                "1. Adicione o bot como <b>administrador</b> do canal\n"
+                "2. Pegue o ID do canal (use @getidsbot)\n"
+                "3. Clique em 'Adicionar Grupo/Canal'\n"
+                "4. Envie o ID (ex: -1001234567890)\n\n"
+                "<b>Para Grupos:</b>\n"
+                "1. Adicione o bot ao grupo\n"
+                "2. Envie /start no grupo\n"
+                "3. O grupo será detectado automaticamente\n"
+                "OU pegue o ID e adicione manualmente\n\n"
+                "<b>Dica:</b> Use @getidsbot ou @userinfobot para descobrir IDs")
         
         # Format menu
         elif data == "menu_format":
@@ -1608,6 +1704,105 @@ class AdminBot:
         except Exception as e:
             self.api.send_message(chat_id, f"❌ Erro ao adicionar fonte: {e}")
     
+    def get_all_groups(self):
+        """Retorna todos os grupos/canais cadastrados."""
+        try:
+            return list(self.db_session.query(BotGroup).all())
+        except Exception as e:
+            logger.error(f"Erro ao buscar grupos: {e}")
+            return []
+    
+    def toggle_group(self, group_id):
+        """Ativa/desativa um grupo."""
+        try:
+            group = self.db_session.query(BotGroup).filter_by(id=group_id).first()
+            if group:
+                group.enabled = not group.enabled
+                self.db_session.commit()
+        except Exception as e:
+            logger.error(f"Erro ao toggle grupo: {e}")
+            self.db_session.rollback()
+    
+    def delete_group(self, group_id):
+        """Remove um grupo."""
+        try:
+            group = self.db_session.query(BotGroup).filter_by(id=group_id).first()
+            if group:
+                self.db_session.delete(group)
+                self.db_session.commit()
+        except Exception as e:
+            logger.error(f"Erro ao deletar grupo: {e}")
+            self.db_session.rollback()
+    
+    def process_add_group(self, chat_id, text, user_id):
+        """Processa adição de novo grupo/canal."""
+        try:
+            text = text.strip()
+            
+            # Verificar se é um username (@canal) ou ID numérico
+            if text.startswith("@"):
+                target_chat_id = text
+                chat_type = "channel"
+                title = text
+            else:
+                # Deve ser um ID numérico
+                try:
+                    target_chat_id = str(int(text))
+                except ValueError:
+                    self.api.send_message(chat_id, 
+                        "❌ Formato inválido!\n\n"
+                        "Use:\n"
+                        "• ID numérico: <code>-1001234567890</code>\n"
+                        "• Username: <code>@meucanal</code>")
+                    return
+                chat_type = "channel" if text.startswith("-100") else "group"
+                title = f"Chat {target_chat_id}"
+            
+            # Tentar obter info do chat
+            try:
+                chat_info = self.api.get_chat(target_chat_id)
+                if chat_info and chat_info.get("ok"):
+                    result = chat_info.get("result", {})
+                    title = result.get("title", title)
+                    chat_type = result.get("type", chat_type)
+                    target_chat_id = str(result.get("id", target_chat_id))
+            except Exception as e:
+                logger.warning(f"Não foi possível obter info do chat: {e}")
+            
+            # Verificar se já existe
+            existing = self.db_session.query(BotGroup).filter_by(chat_id=target_chat_id).first()
+            if existing:
+                self.api.send_message(chat_id, 
+                    f"⚠️ Este grupo/canal já está cadastrado!\n\n"
+                    f"<b>{existing.title}</b>\n"
+                    f"ID: <code>{existing.chat_id}</code>")
+                return
+            
+            # Adicionar
+            new_group = BotGroup(
+                chat_id=target_chat_id,
+                title=title,
+                chat_type=chat_type,
+                enabled=True,
+                added_by=str(user_id)
+            )
+            self.db_session.add(new_group)
+            self.db_session.commit()
+            
+            groups = self.get_all_groups()
+            self.api.send_message(chat_id, 
+                f"✅ <b>Grupo/Canal adicionado!</b>\n\n"
+                f"📢 {title}\n"
+                f"🆔 <code>{target_chat_id}</code>\n"
+                f"📌 Tipo: {chat_type}\n\n"
+                f"Total: {len(groups)} grupo(s)/canal(is)",
+                build_groups_menu(groups))
+                
+        except Exception as e:
+            logger.error(f"Erro ao adicionar grupo: {e}")
+            self.db_session.rollback()
+            self.api.send_message(chat_id, f"❌ Erro ao adicionar grupo: {e}")
+    
     def process_calendar_add(self, chat_id, text):
         """Processa adição de novo evento ao calendário."""
         try:
@@ -2001,6 +2196,25 @@ SOURCES_CONFIG = {
     "criptofacil": ("CriptoFacil", "https://www.criptofacil.com/", "div.posts-layout article", "h1", "div.entry-content"),
 }
 
+def get_send_list(db_session):
+    """Retorna lista de chat_ids para enviar notícias (grupos ativos + canal principal)."""
+    send_list = []
+    
+    # Adicionar canal principal se configurado
+    if CHANNEL_ID:
+        send_list.append(CHANNEL_ID)
+    
+    # Adicionar grupos/canais cadastrados e ativos
+    try:
+        groups = db_session.query(BotGroup).filter_by(enabled=True).all()
+        for g in groups:
+            if g.chat_id not in send_list:
+                send_list.append(g.chat_id)
+    except Exception as e:
+        logger.warning(f"Erro ao buscar grupos: {e}")
+    
+    return send_list if send_list else [CHANNEL_ID]
+
 def run_news_fetcher(db_session, config_mgr):
     """Thread que busca e posta notícias."""
     logger.info("News fetcher started.")
@@ -2012,6 +2226,9 @@ def run_news_fetcher(db_session, config_mgr):
             custom_sources = config.get("custom_sources", {})
             fmt = config.get("format", {})
             cycle_interval = config.get("cycle_interval", 300)
+            
+            # Obter lista de destinos (grupos/canais)
+            send_list = get_send_list(db_session)
             
             for source_key, enabled in sources_enabled.items():
                 if not enabled:
@@ -2041,7 +2258,7 @@ def run_news_fetcher(db_session, config_mgr):
                     
                     np = NewsPostman(
                         listURLs=[url],
-                        sendList=[CHANNEL_ID],
+                        sendList=send_list,
                         db=db_session,
                         tag=f"{name} (PT)" if fmt.get("translate") else name,
                         token=TOKEN
@@ -2135,7 +2352,8 @@ def run_event_alerts(db_session, config_mgr, api):
             config = config_mgr.get_config()
             
             # Verificar e enviar alertas
-            alerts_sent = check_and_send_event_alerts(db_session, api, CHANNEL_ID, config)
+            send_list = get_send_list(db_session)
+            alerts_sent = check_and_send_event_alerts(db_session, api, send_list, config)
             if alerts_sent > 0:
                 logger.info(f"Sent {alerts_sent} event alerts")
             
