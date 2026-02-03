@@ -544,6 +544,73 @@ def build_analytics_menu():
     }
 
 # ============================================================
+# Custom Display Policy - Notícia completa na mensagem
+# ============================================================
+def custom_news_display_policy(item, max_len=3500, max_par_num=20, suffix='...'):
+    """
+    Política de exibição personalizada que mostra a notícia completa.
+    Formatação profissional com emojis e estrutura clara.
+    """
+    parse_mode = 'HTML'
+    disable_web_page_preview = 'False'  # Mostrar preview do link
+    
+    # Construir mensagem formatada
+    po = ""
+    
+    # Título em destaque
+    title = item.get('title', '')
+    if title:
+        po += f"📰 <b>{title}</b>\n\n"
+    
+    # Conteúdo/parágrafos
+    paragraphs = item.get('paragraphs', '')
+    if paragraphs:
+        # Limpar e formatar parágrafos
+        paragraphs = paragraphs.strip()
+        
+        # Se muito longo, truncar com inteligência
+        if len(paragraphs) > max_len:
+            # Cortar em um ponto final ou espaço
+            cut_point = paragraphs[:max_len].rfind('. ')
+            if cut_point == -1:
+                cut_point = paragraphs[:max_len].rfind(' ')
+            if cut_point == -1:
+                cut_point = max_len
+            paragraphs = paragraphs[:cut_point + 1] + suffix
+        
+        po += paragraphs
+        
+        if not po.endswith('\n'):
+            po += '\n'
+        po += '\n'
+    
+    # Fonte e link
+    source = item.get('source', '')
+    link = item.get('link', '')
+    time_str = item.get('time', '')
+    
+    po += "━━━━━━━━━━━━━━━\n"
+    
+    if source:
+        po += f"📡 <b>Fonte:</b> {source}\n"
+    
+    if time_str:
+        po += f"🕐 {time_str}\n"
+    
+    if link:
+        po += f"🔗 <a href='{link}'>Ler notícia completa</a>\n"
+    
+    # Limitar tamanho total
+    if len(po) > 4096:
+        po = po[:4090] + "..."
+    
+    return {
+        'text': po,
+        'parse_mode': parse_mode,
+        'disable_web_page_preview': disable_web_page_preview
+    }
+
+# ============================================================
 # Config Manager
 # ============================================================
 class ConfigManager:
@@ -2883,7 +2950,8 @@ def run_news_fetcher(db_session, config_mgr):
                         sendList=send_list,
                         db=db_session,
                         tag=f"{name} (PT)" if fmt.get("translate") else name,
-                        token=TOKEN
+                        token=TOKEN,
+                        display_policy=custom_news_display_policy  # Usar nossa política personalizada
                     )
                     np.set_extractor(ie)
                     np.set_database(db_session)
