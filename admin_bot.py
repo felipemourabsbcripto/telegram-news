@@ -2983,6 +2983,10 @@ def run_news_fetcher(db_session, config_mgr):
                     
                     # Custom post-processing with AI
                     def process_data(data, src_name=name, src_key=source_key):
+                        # Verificar se data é válido
+                        if data is None:
+                            return None
+                        
                         title = data.get("title", "")
                         content = data.get("paragraphs", "")
                         
